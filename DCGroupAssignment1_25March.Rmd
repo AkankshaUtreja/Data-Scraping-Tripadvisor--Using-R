@@ -1,0 +1,114 @@
+---
+title: "Web Page Scraping"
+author: "Akanksha Utreja (11910056), Devashish Dhiman(11910075),Swapnil Vermani(11910052)"
+date: "3/25/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Installing the packages
+
+```{r}
+library(rvest)
+library(XML)
+```
+
+Getting the data from the URL we need to scrape.
+
+```{r}
+url ='https://www.tripadvisor.in/Hotels-g659796-Gangtok_East_Sikkim_Sikkim-Hotels.html'
+urldata = read_html(url)
+```
+
+```{r}
+nameurl = html_nodes(urldata,'.prominent')
+name = html_text(nameurl)
+link = html_attr(nameurl,'href')
+price= html_text(html_nodes(urldata,'.price.autoResize'))
+#reviews = html_text(html_nodes(urldata,'.review_count'))
+Rankings= html_text(html_nodes(urldata,'.popindex'))
+nameurl 
+name
+link
+price
+```
+
+We need to clear junk and extra characters from price.
+
+```{r}
+library(stringr)
+price=str_replace_all(price, "\u20b9", "")
+price=str_replace_all(price,"\u00A0","") 
+
+```
+
+We see in the links that root link is not appended to the path. Hence, with the help of paste0 we can get full links of individual hotel pages and scrape extra and specific information related to the room.
+
+```{r}
+link
+url = paste0('https://www.tripadvisor.in',link)
+url
+```
+```{r}
+df = data.frame(name, url, price,Rankings)
+head(df)
+```
+
+Now, let us scrape out some data from individual hotel links.We can get the amenities, address, ratings and then we can club all of them in the dataframe.We have to clean the addresss and then store it.
+
+There were some hotels for which the Hotel class and savings didn't exist so for those hotels we have inputted 0 by checking such chracters with the help of identical() function.
+
+
+```{r}
+reviewscount = NULL
+hotel_class=NULL
+rating = NULL
+amenity = NULL
+addr = NULL
+savings= NULL
+
+for (u in df$url) {
+
+  page = read_html(u)
+  reviews1 = html_text(html_nodes(page,'#taplc_resp_hr_atf_hotel_info_0 .reviewCount'))
+  rating1 = html_text(html_nodes(page,'.overallRating'))
+  amenity1 = paste(html_text(html_nodes(page,'.highlightedAmenity')), collapse= ", ")
+  addr1 = html_text(html_nodes(page,'.hotelActions'))
+  hotel_class1=html_text(html_nodes(page,'.starRating.detailListItem > div:nth-child(2)'))
+    print(hotel_class1)
+  savings1= html_text(html_nodes(page,'.saveMoney'))
+savings1 =str_replace_all(savings1, "SAVE \u20b9\u00A0", "")
+    
+  reviewscount = c(reviewscount, reviews1)
+  rating = c(rating,rating1)
+  amenity = c(amenity, amenity1)
+  addr = c(addr, addr1)
+  if(identical(hotel_class1 , character(0))){
+    hotel_class1="0"
+  }
+    if(identical(savings1 , character(0))){
+    savings1="0"
+  }
+  
+   hotel_class=c(hotel_class,hotel_class1)
+
+savings=c(savings,savings1)  
+  addr1 = gsub('^Save','',addr)
+  Adress = substr(addr1,1,nchar(addr1)/2)
+}
+```
+
+Finally, our data frame with all the details scraped from the web page is ready!
+
+```{r}
+df = data.frame(name, url,price,reviewscount,Rankings,rating,
+                amenity,Adress,hotel_class,savings)
+head(df)
+write.csv(file="C:\\Users\\AKANKSHA\\Desktop\\ISB CBA\\Data Collection\\ScrapedData.csv", x=df)
+```
+
